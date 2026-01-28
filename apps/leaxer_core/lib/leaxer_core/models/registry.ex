@@ -105,7 +105,7 @@ defmodule LeaxerCore.Models.Registry do
   require Logger
 
   # Remote registry URL (configurable via application env)
-  @default_registry_url "https://raw.githubusercontent.com/user/leaxer/main/registry/models.json"
+  @default_registry_url "https://raw.githubusercontent.com/leaxer-ai/leaxer-model-registry/main/registry.json"
   @ets_table :model_registry
 
   # Get local registry path at runtime (not compile time)

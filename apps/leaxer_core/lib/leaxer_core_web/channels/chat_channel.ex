@@ -107,11 +107,13 @@ defmodule LeaxerCoreWeb.ChatChannel do
   end
 
   def handle_info({:llm_server_status, status, model_or_error}, socket) do
-    payload = if status == :error do
-      %{status: to_string(status), error: model_or_error}
-    else
-      %{status: to_string(status), model: model_or_error}
-    end
+    payload =
+      if status == :error do
+        %{status: to_string(status), error: model_or_error}
+      else
+        %{status: to_string(status), model: model_or_error}
+      end
+
     push(socket, "llm_server_status", payload)
     {:noreply, socket}
   end

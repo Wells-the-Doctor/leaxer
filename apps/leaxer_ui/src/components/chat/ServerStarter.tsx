@@ -185,8 +185,8 @@ export const ServerStarter = memo(({ onStart, isStarting }: ServerStarterProps) 
                 top: dropdownPosition.top,
                 left: dropdownPosition.left,
                 width: Math.max(dropdownPosition.width, 280),
-                background: 'rgba(30, 30, 46, 0.95)',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+                background: 'rgba(255, 255, 255, 0.08)',
+                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
               }}
             >
               {loadingModels ? (

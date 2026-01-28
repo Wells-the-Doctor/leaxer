@@ -391,6 +391,7 @@ defmodule LeaxerCore.Workers.LLMServer do
     # Log each line for debugging and broadcast to subscribers
     Enum.each(lines, fn line ->
       line = String.trim(line)
+
       if line != "" do
         Logger.debug("[llama-server] #{line}")
         # Broadcast log line to subscribers for real-time streaming
@@ -404,7 +405,11 @@ defmodule LeaxerCore.Workers.LLMServer do
       new_state = %{state | server_ready: true, starting: false}
 
       # Broadcast status change
-      Phoenix.PubSub.broadcast(LeaxerCore.PubSub, "llm_server:status", {:llm_server_status, :ready})
+      Phoenix.PubSub.broadcast(
+        LeaxerCore.PubSub,
+        "llm_server:status",
+        {:llm_server_status, :ready}
+      )
 
       # Reply to all pending requests
       Enum.each(Enum.reverse(state.pending_requests), fn {from, _model, _opts} ->
@@ -421,8 +426,17 @@ defmodule LeaxerCore.Workers.LLMServer do
     Logger.warning("[llama-server:#{state.server_port}] Server exited with code #{code}")
 
     # Broadcast error status and log
-    Phoenix.PubSub.broadcast(LeaxerCore.PubSub, "llm_server:status", {:llm_server_status, :error, "Server crashed (exit code: #{code})"})
-    Phoenix.PubSub.broadcast(LeaxerCore.PubSub, "llm_server:logs", {:llm_server_log, "❌ Server exited with code #{code}"})
+    Phoenix.PubSub.broadcast(
+      LeaxerCore.PubSub,
+      "llm_server:status",
+      {:llm_server_status, :error, "Server crashed (exit code: #{code})"}
+    )
+
+    Phoenix.PubSub.broadcast(
+      LeaxerCore.PubSub,
+      "llm_server:logs",
+      {:llm_server_log, "❌ Server exited with code #{code}"}
+    )
 
     # Reply to any pending requests with error
     Enum.each(state.pending_requests, fn {from, _model, _opts} ->
@@ -517,7 +531,11 @@ defmodule LeaxerCore.Workers.LLMServer do
       Process.send_after(self(), :check_server_ready, 2_000)
 
       # Broadcast that we're starting
-      Phoenix.PubSub.broadcast(LeaxerCore.PubSub, "llm_server:status", {:llm_server_status, :loading, model_path})
+      Phoenix.PubSub.broadcast(
+        LeaxerCore.PubSub,
+        "llm_server:status",
+        {:llm_server_status, :loading, model_path}
+      )
 
       %__MODULE__{
         port: port,
@@ -595,7 +613,7 @@ defmodule LeaxerCore.Workers.LLMServer do
       # Try alternate naming convention
       (fallback =
          LeaxerCore.BinaryFinder.find_arch_binary("llama.cpp-server", backend, fallback_cpu: true)) !=
-          nil and binary_works?(fallback) ->
+        nil and binary_works?(fallback) ->
         fallback
 
       # Try system llama-server (e.g., installed via homebrew)
@@ -618,7 +636,8 @@ defmodule LeaxerCore.Workers.LLMServer do
   defp binary_works?(path) do
     case System.cmd(path, ["--help"], stderr_to_stdout: true) do
       {_, 0} -> true
-      {_, 1} -> true  # llama-server returns 1 for --help but that's OK
+      # llama-server returns 1 for --help but that's OK
+      {_, 1} -> true
       {output, _} -> not String.contains?(output, "Library not loaded")
     end
   rescue
