@@ -1,16 +1,17 @@
-import { memo, useMemo, useState, useCallback } from 'react';
+import { memo, useMemo } from 'react';
 import suggestionsData from '@/data/chatSuggestions.json';
 import welcomeTitlesData from '@/data/welcomeTitles.json';
 import { ChatInput } from './ChatInput';
 import { ServerStarter } from './ServerStarter';
 import { useChatStore } from '@/stores/chatStore';
-import { useChatWebSocket } from '@/hooks/useChatWebSocket';
 import type { ChatAttachment } from '@/types/chat';
 
 interface ChatWelcomeProps {
   onSend?: (message: string, attachments?: ChatAttachment[]) => void;
   onAbort?: () => void;
   onModelLoad?: (model: string) => void;
+  onStartServer?: (model: string) => Promise<void>;
+  isStartingServer?: boolean;
   disabled?: boolean;
   isGenerating?: boolean;
   isVisible?: boolean;
@@ -28,7 +29,7 @@ function getRandomWelcomeTitle(): string {
   return welcomeTitlesData.titles[index];
 }
 
-export const ChatWelcome = memo(({ onSend, onAbort, onModelLoad, disabled, isGenerating, isVisible }: ChatWelcomeProps) => {
+export const ChatWelcome = memo(({ onSend, onAbort, onModelLoad, onStartServer, isStartingServer = false, disabled, isGenerating, isVisible }: ChatWelcomeProps) => {
   // Get random welcome title, memoized so it doesn't change on re-render
   const welcomeTitle = useMemo(() => getRandomWelcomeTitle(), []);
   // Get 3 random suggestions, memoized so they don't change on re-render
@@ -36,29 +37,9 @@ export const ChatWelcome = memo(({ onSend, onAbort, onModelLoad, disabled, isGen
 
   // LLM server state
   const llmServerStatus = useChatStore((s) => s.llmServerStatus);
-  const setLlmServerStatus = useChatStore((s) => s.setLlmServerStatus);
-  const clearLlmServerLogs = useChatStore((s) => s.clearLlmServerLogs);
-  const [isStartingServer, setIsStartingServer] = useState(false);
 
-  // WebSocket for starting server
-  const { startLlmServer } = useChatWebSocket({});
-
-  // Handle starting the LLM server
-  const handleStartServer = useCallback(async (model: string) => {
-    setIsStartingServer(true);
-    clearLlmServerLogs();
-    try {
-      await startLlmServer(model);
-    } catch (err) {
-      console.error('Failed to start LLM server:', err);
-      setLlmServerStatus('error', err instanceof Error ? err.message : 'Failed to start server');
-    } finally {
-      setIsStartingServer(false);
-    }
-  }, [startLlmServer, setLlmServerStatus, clearLlmServerLogs]);
-
-  // Show ServerStarter when LLM server is idle
-  const showServerStarter = llmServerStatus === 'idle' || isStartingServer;
+  // Show ServerStarter when LLM server is not ready
+  const showServerStarter = llmServerStatus !== 'ready';
 
   return (
     <div className="flex flex-col items-center justify-center h-full text-center w-full max-w-2xl mx-auto px-6">
@@ -77,10 +58,10 @@ export const ChatWelcome = memo(({ onSend, onAbort, onModelLoad, disabled, isGen
 
       {/* ChatInput or ServerStarter - centered */}
       <div className="w-full mb-6" style={{ overflow: 'visible' }}>
-        {showServerStarter ? (
+        {showServerStarter && onStartServer ? (
           <ServerStarter
-            onStart={handleStartServer}
-            isStarting={isStartingServer || llmServerStatus === 'loading'}
+            onStart={onStartServer}
+            isStarting={llmServerStatus === 'loading'}
           />
         ) : (
           <ChatInput

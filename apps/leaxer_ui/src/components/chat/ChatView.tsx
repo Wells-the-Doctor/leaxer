@@ -99,21 +99,6 @@ export const ChatView = memo(() => {
     loadSessionsFromBackend();
   }, [loadSessionsFromBackend]);
 
-  // Fetch initial LLM server health status when WebSocket connects
-  useEffect(() => {
-    if (wsConnected) {
-      getLlmServerHealth()
-        .then((health) => {
-          setLlmServerStatus(health.status as 'idle' | 'loading' | 'ready' | 'error', health.error);
-        })
-        .catch((err) => {
-          console.error('Failed to get LLM server health:', err);
-          // Assume idle if we can't get status
-          setLlmServerStatus('idle');
-        });
-    }
-  }, [wsConnected, getLlmServerHealth, setLlmServerStatus]);
-
   // Generate follow-up suggestions using the LLM
   const generateFollowUps = useCallback(
     async (sessionId: string, messageId: string, assistantResponse: string) => {
@@ -432,6 +417,21 @@ Assistant: "${assistantResponse.slice(0, 300)}"`;
       addLlmServerLog(log.line, log.timestamp);
     },
   });
+
+  // Fetch initial LLM server health status when WebSocket connects
+  useEffect(() => {
+    if (wsConnected) {
+      getLlmServerHealth()
+        .then((health) => {
+          setLlmServerStatus(health.status as 'idle' | 'loading' | 'ready' | 'error', health.error);
+        })
+        .catch((err) => {
+          console.error('Failed to get LLM server health:', err);
+          // Assume idle if we can't get status
+          setLlmServerStatus('idle');
+        });
+    }
+  }, [wsConnected, getLlmServerHealth, setLlmServerStatus]);
 
   // Check if scrolled to bottom
   const checkIfAtBottom = useCallback(() => {
@@ -1122,6 +1122,8 @@ Assistant: "${assistantResponse.slice(0, 300)}"`;
             onSend={handleSend}
             onAbort={handleAbort}
             onModelLoad={handleModelLoad}
+            onStartServer={handleStartServer}
+            isStartingServer={isStartingServer}
             disabled={!selectedModel}
             isGenerating={isGenerating}
             isVisible={messages.length === 0}
@@ -1186,11 +1188,11 @@ Assistant: "${assistantResponse.slice(0, 300)}"`;
         style={{ overflow: 'visible' }}
       >
         <div className={`max-w-3xl mx-auto ${messages.length > 0 ? 'pointer-events-auto' : 'pointer-events-none'}`} style={{ overflow: 'visible' }}>
-          {/* Show ServerStarter when LLM server is idle, otherwise show ChatInput */}
-          {llmServerStatus === 'idle' || isStartingServer ? (
+          {/* Show ServerStarter when LLM server is not ready */}
+          {llmServerStatus !== 'ready' ? (
             <ServerStarter
               onStart={handleStartServer}
-              isStarting={isStartingServer || llmServerStatus === 'loading'}
+              isStarting={llmServerStatus === 'loading'}
             />
           ) : (
             <>
