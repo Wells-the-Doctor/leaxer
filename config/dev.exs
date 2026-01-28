@@ -60,7 +60,7 @@ config :leaxer_core, dev_routes: true
 config :leaxer_core, LeaxerCore.Nodes.Registry, hot_reload: true
 
 # Use local model registry only (skip remote fetch) in development
-config :leaxer_core, model_registry_local_only: true
+config :leaxer_core, model_registry_local_only: false
 
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message\n"
