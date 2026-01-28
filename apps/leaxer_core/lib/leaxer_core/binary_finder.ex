@@ -153,8 +153,28 @@ defmodule LeaxerCore.BinaryFinder do
         cpu_path = arch_bin_path(binary_name, "cpu")
         if File.exists?(cpu_path), do: cpu_path, else: nil
 
+      # On macOS ARM, try metal variant when cpu requested but not found
+      compute_backend == "cpu" and macos_arm?() ->
+        metal_path = arch_bin_path(binary_name, "metal")
+        if File.exists?(metal_path), do: metal_path, else: nil
+
       true ->
         nil
+    end
+  end
+
+  @doc """
+  Check if running on macOS ARM (Apple Silicon).
+  """
+  @spec macos_arm?() :: boolean()
+  def macos_arm? do
+    case :os.type() do
+      {:unix, :darwin} ->
+        sys_arch = :erlang.system_info(:system_architecture) |> to_string()
+        String.starts_with?(sys_arch, "aarch64") or String.starts_with?(sys_arch, "arm")
+
+      _ ->
+        false
     end
   end
 
