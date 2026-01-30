@@ -71,7 +71,7 @@ jobs:
             target: x86_64-unknown-linux-gnu
             ext: ""
           - platform: windows-x64
-            os: windows-latest
+            os: windows-2022
             target: x86_64-pc-windows-msvc
             ext: .exe
 

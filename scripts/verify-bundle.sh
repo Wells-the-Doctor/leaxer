@@ -107,17 +107,39 @@ verify_bundle() {
         return 1
     fi
 
-    # Critical executables (required for all platforms)
+    # Critical executables - platform-specific naming
+    # On macOS ARM, Metal versions are the primary binaries (no CPU-only builds)
+    # On other platforms, CPU versions are primary with optional GPU variants
     log_info "--- Critical Executables ---"
-    check_file "$bin_dir/llama-server-${target}${ext}" "llama-server" || ((errors++))
-    check_file "$bin_dir/llama-cli-${target}${ext}" "llama-cli" || ((errors++))
-    check_file "$bin_dir/sd-${target}${ext}" "sd" || ((errors++))
+
+    case "$target" in
+        aarch64-apple-darwin)
+            # macOS ARM: Metal binaries are primary (all Apple Silicon supports Metal)
+            check_file "$bin_dir/llama-server-${target}-metal" "llama-server-metal" || ((errors++))
+            check_file "$bin_dir/llama-cli-${target}-metal" "llama-cli-metal" || ((errors++))
+            check_file "$bin_dir/sd-${target}-metal" "sd-metal" || ((errors++))
+            ;;
+        x86_64-apple-darwin)
+            # macOS Intel: CPU binaries are primary
+            check_file "$bin_dir/llama-server-${target}${ext}" "llama-server" || ((errors++))
+            check_file "$bin_dir/llama-cli-${target}${ext}" "llama-cli" || ((errors++))
+            check_file "$bin_dir/sd-${target}${ext}" "sd" || ((errors++))
+            ;;
+        *)
+            # Linux/Windows: CPU binaries are primary
+            check_file "$bin_dir/llama-server-${target}${ext}" "llama-server" || ((errors++))
+            check_file "$bin_dir/llama-cli-${target}${ext}" "llama-cli" || ((errors++))
+            check_file "$bin_dir/sd-${target}${ext}" "sd" || ((errors++))
+            ;;
+    esac
+
+    # Common binaries (all platforms)
     check_file "$bin_dir/leaxer-grounding-dino${ext}" "leaxer-grounding-dino" || ((errors++))
     check_file "$bin_dir/leaxer-sam${ext}" "leaxer-sam" || ((errors++))
     check_file "$bin_dir/realesrgan-ncnn-vulkan${ext}" "realesrgan-ncnn-vulkan" || ((errors++))
     echo ""
 
-    # GPU executables (optional)
+    # GPU executables (optional on platforms with CPU primary)
     log_info "--- GPU Executables (optional) ---"
     case "$target" in
         x86_64-unknown-linux-gnu|x86_64-pc-windows-msvc)
@@ -127,9 +149,7 @@ verify_bundle() {
             check_file "$bin_dir/sd-server-${target}-cuda${ext}" "sd-server-cuda" "false"
             ;;
         aarch64-apple-darwin)
-            check_file "$bin_dir/llama-server-${target}-metal" "llama-server-metal" "false"
-            check_file "$bin_dir/llama-cli-${target}-metal" "llama-cli-metal" "false"
-            check_file "$bin_dir/sd-${target}-metal" "sd-metal" "false"
+            # Metal server variant (optional)
             check_file "$bin_dir/sd-server-${target}-metal" "sd-server-metal" "false"
             ;;
     esac
