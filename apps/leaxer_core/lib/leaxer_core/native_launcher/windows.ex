@@ -2,26 +2,27 @@ defmodule LeaxerCore.NativeLauncher.Windows do
   @moduledoc """
   Windows-specific native binary launcher with proper DLL search path setup.
 
-  Uses PowerShell with `-WindowStyle Hidden` to launch executables without
-  showing a console window, while ensuring the working directory is set BEFORE
-  the executable is spawned (required for Windows DLL loading).
+  Uses a batch file wrapper to ensure the working directory is changed BEFORE
+  the executable is spawned. This is critical because Windows DLL resolution
+  uses the calling process's state during CreateProcess.
 
   ## The Problem
 
   Windows DLL loader resolves dependencies during `CreateProcess`, BEFORE the
-  child process starts. The `cd:` option in `Port.open` sets the working directory
-  for the child process AFTER it starts. This means DLL resolution happens using
-  the parent process's (BEAM VM) current directory, not the bin directory.
+  child process starts. Erlang's Port.open `cd:` option sets the working
+  directory AFTER process creation (too late for DLL resolution).
 
   ## The Solution
 
-  Use PowerShell with:
-  1. `-WindowStyle Hidden` - No visible console window
-  2. `Set-Location` - Change directory before spawning
-  3. `& 'exe'` - Execute the binary with proper argument handling
+  Create a temporary batch file that:
+  1. Changes to the bin directory with `cd /d`
+  2. Runs the executable with all arguments
+  3. Exits with the executable's exit code
 
-  This works because PowerShell changes the working directory before the
-  executable is spawned, and the hidden window style prevents console flash.
+  This works because:
+  1. The batch file changes the working directory before spawning the child
+  2. DLLs in the bin directory are found via the "current directory" search
+  3. We also prepend bin_dir to PATH as a fallback
   """
 
   require Logger
@@ -33,63 +34,43 @@ defmodule LeaxerCore.NativeLauncher.Windows do
     additional_env = Keyword.get(opts, :env, [])
     extra_port_opts = Keyword.get(opts, :port_opts, [])
 
-    # Convert to Windows-style paths
     native_bin_dir = to_windows_path(bin_dir)
     native_exe_path = to_windows_path(exe_path)
 
     Logger.debug("[NativeLauncher.Windows] Spawning: #{native_exe_path}")
     Logger.debug("[NativeLauncher.Windows] DLL dir: #{native_bin_dir}")
 
-    spawn_via_powershell(native_exe_path, args, native_bin_dir, additional_env, extra_port_opts)
+    # Validate DLLs exist before spawning
+    validate_dll_presence(native_bin_dir)
+
+    # Use batch file approach (most reliable for Windows DLL loading)
+    spawn_via_batch(native_exe_path, args, native_bin_dir, additional_env, extra_port_opts)
   end
 
-  defp spawn_via_powershell(exe_path, args, bin_dir, additional_env, extra_port_opts) do
-    # Pre-spawn DLL validation for better error diagnostics
-    validate_dll_presence(bin_dir)
-
+  defp spawn_via_batch(exe_path, args, bin_dir, additional_env, extra_port_opts) do
     env = build_process_env(bin_dir, additional_env)
-    escaped_args = Enum.map(args, &escape_powershell_arg/1) |> Enum.join(" ")
 
-    # PowerShell command: change directory then run executable
-    # Using single quotes for paths to avoid variable expansion issues
-    ps_command = "Set-Location -LiteralPath '#{escape_ps_string(bin_dir)}'; & '#{escape_ps_string(exe_path)}' #{escaped_args}"
+    # Create a temporary batch file
+    batch_content = build_batch_content(exe_path, args, bin_dir)
+    batch_path = create_temp_batch_file(batch_content)
 
-    # Log full PowerShell command for debugging
-    Logger.debug("[NativeLauncher.Windows] Full PowerShell command: #{ps_command}")
+    Logger.debug("[NativeLauncher.Windows] Batch file: #{batch_path}")
+    Logger.debug("[NativeLauncher.Windows] Batch content:\n#{batch_content}")
+    log_path_env(env)
 
-    # Log PATH environment variable
-    {_, path_value} =
-      Enum.find(env, {nil, ~c""}, fn {k, _} -> k == ~c"PATH" end)
-
-    path_str = to_string(path_value)
-    # Only log first portion of PATH to avoid excessive logging
-    path_preview = String.slice(path_str, 0, 500)
-    Logger.debug("[NativeLauncher.Windows] PATH env (first 500 chars): #{path_preview}")
-
-    powershell_exe =
-      System.find_executable("powershell.exe") ||
-        "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+    cmd_exe = System.get_env("COMSPEC") || "C:\\Windows\\System32\\cmd.exe"
 
     port_opts =
       [
         :binary,
         :exit_status,
         :stderr_to_stdout,
-        args: [
-          "-WindowStyle",
-          "Hidden",
-          "-NoProfile",
-          "-NonInteractive",
-          "-ExecutionPolicy",
-          "Bypass",
-          "-Command",
-          ps_command
-        ],
+        args: ["/c", batch_path],
         env: env
       ] ++ extra_port_opts
 
     try do
-      port = Port.open({:spawn_executable, powershell_exe}, port_opts)
+      port = Port.open({:spawn_executable, cmd_exe}, port_opts)
 
       os_pid =
         case Port.info(port, :os_pid) do
@@ -97,13 +78,77 @@ defmodule LeaxerCore.NativeLauncher.Windows do
           _ -> nil
         end
 
-      Logger.info("[NativeLauncher.Windows] Spawned via PowerShell (hidden), OS PID: #{inspect(os_pid)}")
+      Logger.info("[NativeLauncher.Windows] Spawned via batch file, OS PID: #{inspect(os_pid)}")
       {:ok, port, os_pid}
     rescue
       e ->
-        Logger.error("[NativeLauncher.Windows] Failed to spawn: #{inspect(e)}")
+        Logger.error("[NativeLauncher.Windows] Failed to spawn via batch: #{inspect(e)}")
+        # Clean up batch file on error
+        File.rm(batch_path)
         {:error, e}
     end
+  end
+
+  defp build_batch_content(exe_path, args, bin_dir) do
+    # Escape arguments for batch file
+    escaped_args =
+      args
+      |> Enum.map(&escape_batch_arg/1)
+      |> Enum.join(" ")
+
+    """
+    @echo off
+    cd /d "#{bin_dir}"
+    if errorlevel 1 (
+      echo Failed to change directory to #{bin_dir}
+      exit /b 1
+    )
+    "#{exe_path}" #{escaped_args}
+    exit /b %errorlevel%
+    """
+  end
+
+  defp create_temp_batch_file(content) do
+    # Use a unique filename in temp directory
+    temp_dir = System.tmp_dir!()
+    unique_id = :crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)
+    batch_path = Path.join(temp_dir, "leaxer_launcher_#{unique_id}.bat")
+
+    # Write with Windows line endings
+    windows_content = String.replace(content, "\n", "\r\n")
+    File.write!(batch_path, windows_content)
+
+    to_windows_path(batch_path)
+  end
+
+  # Escape argument for batch file
+  # Batch files use ^ as escape character and " for quoting
+  defp escape_batch_arg(arg) when is_binary(arg) do
+    if needs_batch_quoting?(arg) do
+      # Escape internal quotes and special chars, wrap in quotes
+      escaped =
+        arg
+        |> String.replace("^", "^^")
+        |> String.replace("\"", "^\"")
+        |> String.replace("%", "%%")
+
+      "\"#{escaped}\""
+    else
+      arg
+    end
+  end
+
+  # Check if argument needs quoting for batch file
+  defp needs_batch_quoting?(arg) do
+    String.contains?(arg, [" ", "\t", "&", "|", "<", ">", "^", "%", "(", ")", "\""])
+  end
+
+  # Log PATH environment variable for debugging
+  defp log_path_env(env) do
+    {_, path_value} = Enum.find(env, {nil, ~c""}, fn {k, _} -> k == ~c"PATH" end)
+    path_str = to_string(path_value)
+    path_preview = String.slice(path_str, 0, 300)
+    Logger.debug("[NativeLauncher.Windows] PATH (first 300 chars): #{path_preview}")
   end
 
   # Validate that required DLLs are present in the bin directory
@@ -122,22 +167,8 @@ defmodule LeaxerCore.NativeLauncher.Windows do
       if File.exists?(dll_path) do
         Logger.debug("[NativeLauncher.Windows] Found critical DLL: #{dll}")
       else
-        Logger.error(
-          "[NativeLauncher.Windows] CRITICAL: #{dll} not found at #{dll_path}"
-        )
-
-        # Log directory contents to help diagnose the issue
-        case File.ls(bin_dir) do
-          {:ok, files} ->
-            Logger.error(
-              "[NativeLauncher.Windows] bin_dir contents: #{inspect(Enum.take(files, 20))}"
-            )
-
-          {:error, reason} ->
-            Logger.error(
-              "[NativeLauncher.Windows] Cannot list bin_dir #{bin_dir}: #{inspect(reason)}"
-            )
-        end
+        Logger.error("[NativeLauncher.Windows] CRITICAL: #{dll} not found at #{dll_path}")
+        log_bin_dir_contents(bin_dir)
       end
     end)
 
@@ -147,40 +178,19 @@ defmodule LeaxerCore.NativeLauncher.Windows do
         File.exists?(Path.join(bin_dir, dll))
       end)
 
-    cuda_missing =
-      Enum.reject(cuda_dlls, fn dll ->
-        File.exists?(Path.join(bin_dir, dll))
-      end)
-
     if cuda_present != [] do
       Logger.info("[NativeLauncher.Windows] CUDA DLLs present: #{inspect(cuda_present)}")
     end
+  end
 
-    if cuda_missing != [] do
-      Logger.debug("[NativeLauncher.Windows] CUDA DLLs not found (may be expected for CPU-only): #{inspect(cuda_missing)}")
+  defp log_bin_dir_contents(bin_dir) do
+    case File.ls(bin_dir) do
+      {:ok, files} ->
+        Logger.error("[NativeLauncher.Windows] bin_dir contents: #{inspect(Enum.take(files, 20))}")
+
+      {:error, reason} ->
+        Logger.error("[NativeLauncher.Windows] Cannot list #{bin_dir}: #{inspect(reason)}")
     end
-  end
-
-  # Escape argument for PowerShell command line
-  # PowerShell uses backtick (`) as escape character and requires special handling
-  defp escape_powershell_arg(arg) when is_binary(arg) do
-    if needs_ps_quoting?(arg) do
-      # Escape embedded single quotes by doubling them
-      escaped = String.replace(arg, "'", "''")
-      "'#{escaped}'"
-    else
-      arg
-    end
-  end
-
-  # Check if argument needs quoting for PowerShell
-  defp needs_ps_quoting?(arg) do
-    String.contains?(arg, [" ", "\t", "'", "\"", "&", "|", "<", ">", "(", ")", "{", "}", "$", "`", ";"])
-  end
-
-  # Escape string for use inside PowerShell single quotes
-  defp escape_ps_string(str) do
-    String.replace(str, "'", "''")
   end
 
   @doc """
