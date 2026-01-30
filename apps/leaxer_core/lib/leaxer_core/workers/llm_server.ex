@@ -141,7 +141,8 @@ defmodule LeaxerCore.Workers.LLMServer do
   defp file_or_executable_exists?(path) do
     cond do
       File.exists?(path) -> true
-      String.contains?(path, "/") -> false
+      # If it looks like a path (has separators), don't check system PATH
+      String.contains?(path, "/") or String.contains?(path, "\\") -> false
       System.find_executable(path) != nil -> true
       true -> false
     end
@@ -491,9 +492,9 @@ defmodule LeaxerCore.Workers.LLMServer do
   defp start_server_process(model_path, server_port, opts) do
     exe_path = server_executable_path()
 
-    # For system binaries (no "/"), resolve full path via which
+    # For system binaries (no path separator), resolve full path via which
     exe_path =
-      if String.contains?(exe_path, "/") do
+      if String.contains?(exe_path, "/") or String.contains?(exe_path, "\\") do
         exe_path
       else
         System.find_executable(exe_path) || exe_path
