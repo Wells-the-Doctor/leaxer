@@ -125,28 +125,40 @@ jobs:
           mix compile
           mix release leaxer_core --overwrite
 
-      - name: Copy Elixir release to Tauri resources
+      - name: Copy Elixir release to Tauri resources (Unix)
+        if: runner.os != 'Windows'
         shell: bash
         run: |
-          # Ensure resources directory exists (gitignored, so not in repo)
           mkdir -p apps/leaxer_desktop/src-tauri/resources
-
-          # Remove old resources completely (may exist from cache)
           rm -rf apps/leaxer_desktop/src-tauri/resources/leaxer_core
-
-          # Copy fresh release (use rsync on unix for reliability, cp on Windows)
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            cp -rf _build/prod/rel/leaxer_core apps/leaxer_desktop/src-tauri/resources/
-          else
-            rsync -a _build/prod/rel/leaxer_core/ apps/leaxer_desktop/src-tauri/resources/leaxer_core/
-          fi
+          rsync -a _build/prod/rel/leaxer_core/ apps/leaxer_desktop/src-tauri/resources/leaxer_core/
 
           echo "=== Elixir release contents ==="
           ls -la apps/leaxer_desktop/src-tauri/resources/leaxer_core/
-
           echo ""
           echo "=== Bundled binaries ==="
           ls -la apps/leaxer_desktop/src-tauri/resources/leaxer_core/lib/leaxer_core-*/priv/bin/ || echo "No binaries in release"
+
+      - name: Copy Elixir release to Tauri resources (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Ensure resources directory exists
+          New-Item -ItemType Directory -Force -Path "apps/leaxer_desktop/src-tauri/resources" | Out-Null
+
+          # Remove old resources completely
+          if (Test-Path "apps/leaxer_desktop/src-tauri/resources/leaxer_core") {
+            Remove-Item -Recurse -Force "apps/leaxer_desktop/src-tauri/resources/leaxer_core"
+          }
+
+          # Copy fresh release
+          Copy-Item -Recurse -Force "_build/prod/rel/leaxer_core" "apps/leaxer_desktop/src-tauri/resources/"
+
+          Write-Host "=== Elixir release contents ==="
+          Get-ChildItem "apps/leaxer_desktop/src-tauri/resources/leaxer_core"
+          Write-Host ""
+          Write-Host "=== Bundled binaries ==="
+          Get-ChildItem "apps/leaxer_desktop/src-tauri/resources/leaxer_core/lib/leaxer_core-*/priv/bin" -ErrorAction SilentlyContinue | Format-Table
 
       - name: Verify Tauri bundle
         shell: bash
