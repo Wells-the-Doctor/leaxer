@@ -370,7 +370,9 @@ defmodule LeaxerCore.Workers.LLMServer do
             # HTTP not ready yet, check for timeout
             cond do
               elapsed > 120_000 ->
-                Logger.error("[llama-server] Server startup timed out after #{div(elapsed, 1000)}s")
+                Logger.error(
+                  "[llama-server] Server startup timed out after #{div(elapsed, 1000)}s"
+                )
 
                 Enum.each(state.pending_requests, fn {from, _model, _opts} ->
                   GenServer.reply(from, {:error, "Server startup timed out"})
@@ -540,7 +542,10 @@ defmodule LeaxerCore.Workers.LLMServer do
                cd: bin_dir
              ) do
           {:ok, port, os_pid} ->
-            Logger.info("[llama-server:#{server_port}] Successfully spawned, OS PID: #{inspect(os_pid)}")
+            Logger.info(
+              "[llama-server:#{server_port}] Successfully spawned, OS PID: #{inspect(os_pid)}"
+            )
+
             {port, os_pid}
 
           {:error, reason} ->

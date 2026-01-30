@@ -106,7 +106,20 @@ defmodule LeaxerCore.MixProject do
   defp sync_priv_bin_dlls(_) do
     if match?({:win32, _}, :os.type()) do
       src = Path.join([__DIR__, "priv", "bin"])
-      build_path = Path.join([__DIR__, "..", "..", "_build", to_string(Mix.env()), "lib", "leaxer_core", "priv", "bin"])
+
+      build_path =
+        Path.join([
+          __DIR__,
+          "..",
+          "..",
+          "_build",
+          to_string(Mix.env()),
+          "lib",
+          "leaxer_core",
+          "priv",
+          "bin"
+        ])
+
       dest = Path.expand(build_path)
 
       if File.dir?(src) and File.dir?(dest) do

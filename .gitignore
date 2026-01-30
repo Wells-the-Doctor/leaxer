@@ -19,7 +19,6 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 pnpm-lock.yaml
-package-lock.json
 
 # Build Outputs
 /dist/

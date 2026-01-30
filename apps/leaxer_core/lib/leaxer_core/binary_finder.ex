@@ -215,9 +215,9 @@ defmodule LeaxerCore.BinaryFinder do
 
     Logger.debug("[BinaryFinder] build_priv (Application.app_dir): #{build_priv}")
 
+    # On Windows in dev mode, use source priv/bin to avoid DLL sync issues
+    # In releases, Mix is not available, so we check for it safely
     path =
-      # On Windows in dev mode, use source priv/bin to avoid DLL sync issues
-      # In releases, Mix is not available, so we check for it safely
       case {mix_env_safe(), :os.type()} do
         {:dev, {:win32, _}} ->
           source_priv = source_priv_bin_dir()

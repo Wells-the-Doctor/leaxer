@@ -120,7 +120,9 @@ defmodule LeaxerCore.NativeLauncher.Windows do
   defp log_bin_dir_contents(bin_dir) do
     case File.ls(bin_dir) do
       {:ok, files} ->
-        Logger.error("[NativeLauncher.Windows] bin_dir contents: #{inspect(Enum.take(files, 20))}")
+        Logger.error(
+          "[NativeLauncher.Windows] bin_dir contents: #{inspect(Enum.take(files, 20))}"
+        )
 
       {:error, reason} ->
         Logger.error("[NativeLauncher.Windows] Cannot list #{bin_dir}: #{inspect(reason)}")
