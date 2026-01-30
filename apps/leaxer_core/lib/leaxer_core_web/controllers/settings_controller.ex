@@ -89,4 +89,25 @@ defmodule LeaxerCoreWeb.SettingsController do
     |> put_status(:ok)
     |> json(%{providers: providers})
   end
+
+  @doc """
+  GET /api/settings/compute-backends
+
+  Returns available compute backends for the current platform.
+  Includes:
+  - available_backends: List of available backends on this system
+  - current_backend: The resolved backend being used
+  - user_preference: The user's setting value (may be "auto")
+  - gpu_info: Detailed GPU hardware information
+  """
+  def compute_backends(conn, _params) do
+    conn
+    |> put_status(:ok)
+    |> json(%{
+      available_backends: LeaxerCore.ComputeBackend.available_backends(),
+      current_backend: LeaxerCore.ComputeBackend.get_backend(),
+      user_preference: Settings.get("compute_backend") || "auto",
+      gpu_info: LeaxerCore.ComputeBackend.gpu_info()
+    })
+  end
 end

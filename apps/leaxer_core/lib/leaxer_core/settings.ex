@@ -14,7 +14,8 @@ defmodule LeaxerCore.Settings do
   require Logger
 
   @default_settings %{
-    "network_exposure_enabled" => false
+    "network_exposure_enabled" => false,
+    "compute_backend" => "auto"
   }
 
   @doc """

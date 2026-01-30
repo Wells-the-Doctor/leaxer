@@ -621,29 +621,7 @@ defmodule LeaxerCore.Workers.StableDiffusionServer do
   end
 
   defp detect_compute_backend do
-    case :os.type() do
-      {:unix, :darwin} ->
-        sys_arch = :erlang.system_info(:system_architecture) |> to_string()
-
-        if String.contains?(sys_arch, "aarch64") or String.contains?(sys_arch, "arm"),
-          do: "metal",
-          else: "cpu"
-
-      {:win32, _} ->
-        if nvidia_gpu_available?(), do: "cuda", else: "cpu"
-
-      {:unix, _} ->
-        if nvidia_gpu_available?(), do: "cuda", else: "cpu"
-    end
-  end
-
-  defp nvidia_gpu_available? do
-    case System.cmd("nvidia-smi", ["-L"], stderr_to_stdout: true) do
-      {output, 0} -> String.contains?(output, "GPU")
-      _ -> false
-    end
-  rescue
-    _ -> false
+    LeaxerCore.ComputeBackend.get_backend()
   end
 
   defp start_server_process(model, compute_backend, server_port, startup_params) do
@@ -860,47 +838,46 @@ defmodule LeaxerCore.Workers.StableDiffusionServer do
 
       Logger.info("[sd-server:#{server_port}] Starting: #{exe_path} #{Enum.join(args, " ")}")
 
-      # On Windows, we need to ensure the child process can find DLLs (CUDA, etc.)
-      # Set PATH in child's environment and working directory to priv/bin
+      # Use NativeLauncher for proper DLL/library loading on all platforms
       bin_dir = LeaxerCore.BinaryFinder.priv_bin_dir()
-      env = build_process_env(bin_dir)
 
-      port =
-        Port.open({:spawn_executable, exe_path}, [
-          :binary,
-          :exit_status,
-          :stderr_to_stdout,
-          args: args,
-          cd: bin_dir,
-          env: env
-        ])
+      {port, os_pid} =
+        case LeaxerCore.NativeLauncher.spawn_executable(exe_path, args,
+               bin_dir: bin_dir,
+               cd: bin_dir
+             ) do
+          {:ok, port, os_pid} ->
+            {port, os_pid}
 
-      os_pid =
-        case Port.info(port, :os_pid) do
-          {:os_pid, pid} -> pid
-          _ -> nil
+          {:error, reason} ->
+            Logger.error("[sd-server:#{server_port}] Failed to spawn: #{inspect(reason)}")
+            {nil, nil}
         end
 
-      # Register with ProcessTracker for orphan cleanup on crash
-      # Include port for fast port-based lookups (no shell scraping needed)
-      if os_pid,
-        do: LeaxerCore.Workers.ProcessTracker.register(os_pid, "sd-server", port: server_port)
+      if port == nil do
+        %__MODULE__{server_ready: false, starting: false, server_port: server_port}
+      else
+        # Register with ProcessTracker for orphan cleanup on crash
+        # Include port for fast port-based lookups (no shell scraping needed)
+        if os_pid,
+          do: LeaxerCore.Workers.ProcessTracker.register(os_pid, "sd-server", port: server_port)
 
-      # Start health check timer
-      Process.send_after(self(), :check_server_ready, 2_000)
+        # Start health check timer
+        Process.send_after(self(), :check_server_ready, 2_000)
 
-      %__MODULE__{
-        port: port,
-        os_pid: os_pid,
-        current_model: model,
-        compute_backend: compute_backend,
-        server_ready: false,
-        server_port: server_port,
-        starting: true,
-        pending_requests: [],
-        start_time: System.monotonic_time(:millisecond),
-        startup_params: startup_params
-      }
+        %__MODULE__{
+          port: port,
+          os_pid: os_pid,
+          current_model: model,
+          compute_backend: compute_backend,
+          server_ready: false,
+          server_port: server_port,
+          starting: true,
+          pending_requests: [],
+          start_time: System.monotonic_time(:millisecond),
+          startup_params: startup_params
+        }
+      end
     end
   end
 
@@ -1233,42 +1210,5 @@ defmodule LeaxerCore.Workers.StableDiffusionServer do
 
   defp generate_output_path(opts) do
     GenerationHelpers.generate_output_path(opts)
-  end
-
-  # Build environment variables for the child process
-  # On Windows, we need to prepend priv/bin to PATH so DLLs can be found
-  defp build_process_env(bin_dir) do
-    case :os.type() do
-      {:win32, _} ->
-        current_path = System.get_env("PATH") || ""
-        native_bin_dir = String.replace(bin_dir, "/", "\\")
-        new_path = "#{native_bin_dir};#{current_path}"
-
-        base_env = [
-          {~c"PATH", String.to_charlist(new_path)},
-          {~c"GGML_BACKEND_DIR", String.to_charlist(native_bin_dir)}
-        ]
-
-        add_if_set(base_env, "SystemRoot") ++
-          add_if_set([], "CUDA_PATH") ++
-          add_if_set([], "TEMP") ++
-          add_if_set([], "TMP")
-
-      _ ->
-        current_ld_path = System.get_env("LD_LIBRARY_PATH") || ""
-        new_ld_path = if current_ld_path == "", do: bin_dir, else: "#{bin_dir}:#{current_ld_path}"
-
-        [
-          {~c"LD_LIBRARY_PATH", String.to_charlist(new_ld_path)},
-          {~c"GGML_BACKEND_DIR", String.to_charlist(bin_dir)}
-        ]
-    end
-  end
-
-  defp add_if_set(env_list, var_name) do
-    case System.get_env(var_name) do
-      nil -> env_list
-      value -> [{String.to_charlist(var_name), String.to_charlist(value)} | env_list]
-    end
   end
 end

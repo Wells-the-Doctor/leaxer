@@ -89,15 +89,41 @@ defmodule LeaxerCore.MixProject do
   # See the documentation for `Mix` for more info on aliases.
   defp aliases do
     [
-      setup: ["deps.get", "assets.setup", "assets.build"],
+      setup: ["deps.get", "sync.dlls", "assets.setup", "assets.build"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
-      "assets.build": ["compile", "tailwind leaxer_core", "esbuild leaxer_core"],
+      "assets.build": ["compile", "sync.dlls", "tailwind leaxer_core", "esbuild leaxer_core"],
       "assets.deploy": [
         "tailwind leaxer_core --minify",
         "esbuild leaxer_core --minify",
         "phx.digest"
       ],
-      precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
+      precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"],
+      "sync.dlls": &sync_priv_bin_dlls/1
     ]
+  end
+
+  # Ensure DLLs are copied to _build on Windows (Mix doesn't always sync them)
+  defp sync_priv_bin_dlls(_) do
+    if match?({:win32, _}, :os.type()) do
+      src = Path.join([__DIR__, "priv", "bin"])
+      build_path = Path.join([__DIR__, "..", "..", "_build", to_string(Mix.env()), "lib", "leaxer_core", "priv", "bin"])
+      dest = Path.expand(build_path)
+
+      if File.dir?(src) and File.dir?(dest) do
+        src
+        |> File.ls!()
+        |> Enum.filter(&String.ends_with?(&1, ".dll"))
+        |> Enum.each(fn dll ->
+          src_path = Path.join(src, dll)
+          dest_path = Path.join(dest, dll)
+
+          if not File.exists?(dest_path) or
+               File.stat!(src_path).mtime > File.stat!(dest_path).mtime do
+            File.cp!(src_path, dest_path)
+            Mix.shell().info("Copied #{dll} to _build")
+          end
+        end)
+      end
+    end
   end
 end

@@ -142,45 +142,43 @@ defmodule LeaxerCore.Workers.LLM do
       Logger.info("[llama.cpp] Starting generation job #{job_id}")
       Logger.debug("[llama.cpp] Command: #{exe_path} #{Enum.join(args, " ")}")
 
-      # On Windows, we need to ensure the child process can find DLLs (CUDA, llama.dll, etc.)
-      # Set PATH in child's environment and working directory to priv/bin
+      # Use NativeLauncher for proper DLL/library loading on all platforms
       bin_dir = LeaxerCore.BinaryFinder.priv_bin_dir()
-      env = build_process_env(bin_dir)
 
-      port =
-        Port.open({:spawn_executable, exe_path}, [
-          :binary,
-          :line,
-          :exit_status,
-          :stderr_to_stdout,
-          args: args,
-          cd: bin_dir,
-          env: env
-        ])
+      {port, os_pid} =
+        case LeaxerCore.NativeLauncher.spawn_executable(exe_path, args,
+               bin_dir: bin_dir,
+               cd: bin_dir,
+               port_opts: [:line]
+             ) do
+          {:ok, port, os_pid} ->
+            {port, os_pid}
 
-      # Get OS PID immediately for reliable process termination
-      os_pid =
-        case Port.info(port, :os_pid) do
-          {:os_pid, pid} -> pid
-          _ -> nil
+          {:error, reason} ->
+            Logger.error("[llama.cpp] Failed to spawn: #{inspect(reason)}")
+            {nil, nil}
         end
 
-      Logger.debug("[llama.cpp] Started process with OS PID: #{inspect(os_pid)}")
+      if port == nil do
+        {:reply, {:error, "Failed to start llama.cpp process"}, state}
+      else
+        Logger.debug("[llama.cpp] Started process with OS PID: #{inspect(os_pid)}")
 
-      # Register with ProcessTracker for orphan cleanup on crash
-      if os_pid, do: LeaxerCore.Workers.ProcessTracker.register(os_pid, "llama-cli")
+        # Register with ProcessTracker for orphan cleanup on crash
+        if os_pid, do: LeaxerCore.Workers.ProcessTracker.register(os_pid, "llama-cli")
 
-      new_state = %__MODULE__{
-        port: port,
-        caller: from,
-        model: model,
-        start_time: System.monotonic_time(:millisecond),
-        job_id: job_id,
-        node_id: node_id,
-        os_pid: os_pid
-      }
+        new_state = %__MODULE__{
+          port: port,
+          caller: from,
+          model: model,
+          start_time: System.monotonic_time(:millisecond),
+          job_id: job_id,
+          node_id: node_id,
+          os_pid: os_pid
+        }
 
-      {:noreply, new_state}
+        {:noreply, new_state}
+      end
     end
   end
 
@@ -356,29 +354,7 @@ defmodule LeaxerCore.Workers.LLM do
   end
 
   defp detect_compute_backend do
-    case :os.type() do
-      {:unix, :darwin} ->
-        sys_arch = :erlang.system_info(:system_architecture) |> to_string()
-
-        if String.contains?(sys_arch, "aarch64") or String.contains?(sys_arch, "arm"),
-          do: "metal",
-          else: "cpu"
-
-      {:win32, _} ->
-        if nvidia_gpu_available?(), do: "cuda", else: "cpu"
-
-      {:unix, _} ->
-        if nvidia_gpu_available?(), do: "cuda", else: "cpu"
-    end
-  end
-
-  defp nvidia_gpu_available? do
-    case System.cmd("nvidia-smi", ["-L"], stderr_to_stdout: true) do
-      {output, 0} -> String.contains?(output, "GPU")
-      _ -> false
-    end
-  rescue
-    _ -> false
+    LeaxerCore.ComputeBackend.get_backend()
   end
 
   defp cleanup_port(port) do
@@ -439,42 +415,5 @@ defmodule LeaxerCore.Workers.LLM do
       job_id: job_id,
       error: error
     })
-  end
-
-  # Build environment variables for the child process
-  # On Windows, we need to prepend priv/bin to PATH so DLLs can be found
-  defp build_process_env(bin_dir) do
-    case :os.type() do
-      {:win32, _} ->
-        current_path = System.get_env("PATH") || ""
-        native_bin_dir = String.replace(bin_dir, "/", "\\")
-        new_path = "#{native_bin_dir};#{current_path}"
-
-        base_env = [
-          {~c"PATH", String.to_charlist(new_path)},
-          {~c"GGML_BACKEND_DIR", String.to_charlist(native_bin_dir)}
-        ]
-
-        add_if_set(base_env, "SystemRoot") ++
-          add_if_set([], "CUDA_PATH") ++
-          add_if_set([], "TEMP") ++
-          add_if_set([], "TMP")
-
-      _ ->
-        current_ld_path = System.get_env("LD_LIBRARY_PATH") || ""
-        new_ld_path = if current_ld_path == "", do: bin_dir, else: "#{bin_dir}:#{current_ld_path}"
-
-        [
-          {~c"LD_LIBRARY_PATH", String.to_charlist(new_ld_path)},
-          {~c"GGML_BACKEND_DIR", String.to_charlist(bin_dir)}
-        ]
-    end
-  end
-
-  defp add_if_set(env_list, var_name) do
-    case System.get_env(var_name) do
-      nil -> env_list
-      value -> [{String.to_charlist(var_name), String.to_charlist(value)} | env_list]
-    end
   end
 end

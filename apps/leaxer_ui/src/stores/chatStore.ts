@@ -57,7 +57,7 @@ interface ChatState {
   fileAttachTrigger: number;
 
   // LLM server state
-  llmServerStatus: 'idle' | 'loading' | 'ready' | 'error';
+  llmServerStatus: 'idle' | 'loading' | 'ready' | 'error' | 'restarting';
   llmServerLogs: Array<{ line: string; timestamp: number }>;
   llmServerError: string | null;
 
@@ -119,7 +119,7 @@ interface ChatState {
   triggerFileAttach: () => void;
 
   // LLM server actions
-  setLlmServerStatus: (status: 'idle' | 'loading' | 'ready' | 'error', error?: string) => void;
+  setLlmServerStatus: (status: 'idle' | 'loading' | 'ready' | 'error' | 'restarting', error?: string) => void;
   addLlmServerLog: (line: string, timestamp: number) => void;
   clearLlmServerLogs: () => void;
 

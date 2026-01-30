@@ -71,6 +71,8 @@ defmodule LeaxerCore.Application do
       LeaxerCoreWeb.Telemetry,
       {DNSCluster, query: Application.get_env(:leaxer_core, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: LeaxerCore.PubSub},
+      # Compute backend detection and configuration (cached)
+      LeaxerCore.ComputeBackend,
       # Log broadcaster (attaches to :logger)
       LeaxerCore.LogBroadcaster,
       # Node registry (ETS-based, must start before runtime)

@@ -29,7 +29,7 @@ function getRandomWelcomeTitle(): string {
   return welcomeTitlesData.titles[index];
 }
 
-export const ChatWelcome = memo(({ onSend, onAbort, onModelLoad, onStartServer, isStartingServer = false, disabled, isGenerating, isVisible }: ChatWelcomeProps) => {
+export const ChatWelcome = memo(({ onSend, onAbort, onModelLoad, onStartServer, isStartingServer: _isStartingServer = false, disabled, isGenerating, isVisible }: ChatWelcomeProps) => {
   // Get random welcome title, memoized so it doesn't change on re-render
   const welcomeTitle = useMemo(() => getRandomWelcomeTitle(), []);
   // Get 3 random suggestions, memoized so they don't change on re-render

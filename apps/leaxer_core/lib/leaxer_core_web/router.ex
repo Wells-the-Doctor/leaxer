@@ -67,6 +67,7 @@ defmodule LeaxerCoreWeb.Router do
     put "/settings", SettingsController, :update
     get "/settings/network-info", SettingsController, :network_info
     get "/settings/search-providers", SettingsController, :search_providers
+    get "/settings/compute-backends", SettingsController, :compute_backends
 
     # Chat sessions
     get "/chats", ChatController, :index
