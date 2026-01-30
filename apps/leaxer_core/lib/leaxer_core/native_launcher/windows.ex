@@ -2,27 +2,21 @@ defmodule LeaxerCore.NativeLauncher.Windows do
   @moduledoc """
   Windows-specific native binary launcher with proper DLL search path setup.
 
-  Uses a batch file wrapper to ensure the working directory is changed BEFORE
-  the executable is spawned. This is critical because Windows DLL resolution
-  uses the calling process's state during CreateProcess.
+  Spawns executables directly via Port.open with bin_dir prepended to PATH,
+  allowing Windows to find DLLs via the PATH environment variable.
 
-  ## The Problem
+  ## DLL Search Order (Windows with SafeDllSearchMode)
 
-  Windows DLL loader resolves dependencies during `CreateProcess`, BEFORE the
-  child process starts. Erlang's Port.open `cd:` option sets the working
-  directory AFTER process creation (too late for DLL resolution).
+  1. DLL Redirection / API sets / SxS manifest
+  2. Known DLLs
+  3. Application directory (where the .exe is located)
+  4-6. System directories
+  7. Current directory
+  8. PATH environment variable
 
-  ## The Solution
-
-  Create a temporary batch file that:
-  1. Changes to the bin directory with `cd /d`
-  2. Runs the executable with all arguments
-  3. Exits with the executable's exit code
-
-  This works because:
-  1. The batch file changes the working directory before spawning the child
-  2. DLLs in the bin directory are found via the "current directory" search
-  3. We also prepend bin_dir to PATH as a fallback
+  Since the executable and DLLs are in the same directory (bin_dir), Windows
+  should find them via "Application directory" (#3). We also prepend bin_dir
+  to PATH as a fallback (#8).
   """
 
   require Logger
@@ -43,34 +37,30 @@ defmodule LeaxerCore.NativeLauncher.Windows do
     # Validate DLLs exist before spawning
     validate_dll_presence(native_bin_dir)
 
-    # Use batch file approach (most reliable for Windows DLL loading)
-    spawn_via_batch(native_exe_path, args, native_bin_dir, additional_env, extra_port_opts)
+    # Direct spawn with PATH set - cleanest approach
+    spawn_direct(native_exe_path, args, native_bin_dir, additional_env, extra_port_opts)
   end
 
-  defp spawn_via_batch(exe_path, args, bin_dir, additional_env, extra_port_opts) do
+  defp spawn_direct(exe_path, args, bin_dir, additional_env, extra_port_opts) do
+    # Build environment with bin_dir prepended to PATH
     env = build_process_env(bin_dir, additional_env)
 
-    # Create a temporary batch file
-    batch_content = build_batch_content(exe_path, args, bin_dir)
-    batch_path = create_temp_batch_file(batch_content)
-
-    Logger.debug("[NativeLauncher.Windows] Batch file: #{batch_path}")
-    Logger.debug("[NativeLauncher.Windows] Batch content:\n#{batch_content}")
+    Logger.debug("[NativeLauncher.Windows] Direct spawn: #{exe_path}")
+    Logger.debug("[NativeLauncher.Windows] Args: #{inspect(args)}")
     log_path_env(env)
-
-    cmd_exe = System.get_env("COMSPEC") || "C:\\Windows\\System32\\cmd.exe"
 
     port_opts =
       [
         :binary,
         :exit_status,
         :stderr_to_stdout,
-        args: ["/c", batch_path],
-        env: env
+        args: args,
+        env: env,
+        cd: bin_dir
       ] ++ extra_port_opts
 
     try do
-      port = Port.open({:spawn_executable, cmd_exe}, port_opts)
+      port = Port.open({:spawn_executable, exe_path}, port_opts)
 
       os_pid =
         case Port.info(port, :os_pid) do
@@ -78,69 +68,13 @@ defmodule LeaxerCore.NativeLauncher.Windows do
           _ -> nil
         end
 
-      Logger.info("[NativeLauncher.Windows] Spawned via batch file, OS PID: #{inspect(os_pid)}")
+      Logger.info("[NativeLauncher.Windows] Spawned directly, OS PID: #{inspect(os_pid)}")
       {:ok, port, os_pid}
     rescue
       e ->
-        Logger.error("[NativeLauncher.Windows] Failed to spawn via batch: #{inspect(e)}")
-        # Clean up batch file on error
-        File.rm(batch_path)
+        Logger.error("[NativeLauncher.Windows] Failed to spawn: #{inspect(e)}")
         {:error, e}
     end
-  end
-
-  defp build_batch_content(exe_path, args, bin_dir) do
-    # Escape arguments for batch file
-    escaped_args =
-      args
-      |> Enum.map(&escape_batch_arg/1)
-      |> Enum.join(" ")
-
-    """
-    @echo off
-    cd /d "#{bin_dir}"
-    if errorlevel 1 (
-      echo Failed to change directory to #{bin_dir}
-      exit /b 1
-    )
-    "#{exe_path}" #{escaped_args}
-    exit /b %errorlevel%
-    """
-  end
-
-  defp create_temp_batch_file(content) do
-    # Use a unique filename in temp directory
-    temp_dir = System.tmp_dir!()
-    unique_id = :crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower)
-    batch_path = Path.join(temp_dir, "leaxer_launcher_#{unique_id}.bat")
-
-    # Write with Windows line endings
-    windows_content = String.replace(content, "\n", "\r\n")
-    File.write!(batch_path, windows_content)
-
-    to_windows_path(batch_path)
-  end
-
-  # Escape argument for batch file
-  # Batch files use ^ as escape character and " for quoting
-  defp escape_batch_arg(arg) when is_binary(arg) do
-    if needs_batch_quoting?(arg) do
-      # Escape internal quotes and special chars, wrap in quotes
-      escaped =
-        arg
-        |> String.replace("^", "^^")
-        |> String.replace("\"", "^\"")
-        |> String.replace("%", "%%")
-
-      "\"#{escaped}\""
-    else
-      arg
-    end
-  end
-
-  # Check if argument needs quoting for batch file
-  defp needs_batch_quoting?(arg) do
-    String.contains?(arg, [" ", "\t", "&", "|", "<", ">", "^", "%", "(", ")", "\""])
   end
 
   # Log PATH environment variable for debugging
